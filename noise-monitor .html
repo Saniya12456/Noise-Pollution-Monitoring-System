@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NoiseWatch - Urban Noise Pollution Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Work+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e14;
+            --bg-secondary: #121820;
+            --bg-card: #1a1f2e;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-green: #00ff88;
+            --accent-yellow: #ffeb3b;
+            --accent-orange: #ff9500;
+            --accent-red: #ff3b30;
+            --border-color: #2d333b;
+            --gradient-safe: linear-gradient(135deg, #00ff88 0%, #00d4aa 100%);
+            --gradient-moderate: linear-gradient(135deg, #ffeb3b 0%, #ffc107 100%);
+            --gradient-high: linear-gradient(135deg, #ff9500 0%, #ff6b35 100%);
+            --gradient-danger: linear-gradient(135deg, #ff3b30 0%, #d32f2f 100%);
+        }
+
+        body {
+            font-family: 'Work Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.05;
+            background: 
+                radial-gradient(circle at 20% 50%, var(--accent-green) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, var(--accent-orange) 0%, transparent 50%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.05; }
+            50% { opacity: 0.08; }
+        }
+
+        /* Header */
+        header {
+            position: relative;
+            z-index: 10;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--gradient-safe);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--bg-primary);
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-green), var(--text-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            color: var(--accent-green);
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        /* Main Container */
+        .container {
+            position: relative;
+            z-index: 5;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Controls Section */
+        .controls {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            animation: slideDown 0.6s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .control-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .input-group input,
+        .input-group select {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-family: 'Work Sans', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: var(--accent-green);
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+        }
+
+        .btn {
+            background: var(--gradient-safe);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 2rem;
+            color: var(--bg-primary);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Work Sans', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Dashboard Grid */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            animation: fadeIn 0.8s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+        .card:nth-child(4) { animation-delay: 0.4s; }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .card-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .badge-live {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--accent-green);
+        }
+
+        /* Current Reading Display */
+        .current-reading {
+            text-align: center;
+            padding: 2rem 0;
+        }
+
+        .db-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 5rem;
+            font-weight: 700;
+            line-height: 1;
+            background: var(--gradient-safe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .db-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .noise-level-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            margin-top: 1.5rem;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .noise-level-fill {
+            height: 100%;
+            background: var(--gradient-safe);
+            transition: width 0.5s ease, background 0.3s ease;
+            border-radius: 4px;
+        }
+
+        /* Location Card */
+        .location-info {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .location-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .location-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-green);
+            font-size: 1.2rem;
+        }
+
+        .location-details h3 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .location-details p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Locations List */
+        .locations-grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .location-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .location-card:hover {
+            border-color: var(--accent-green);
+            transform: translateX(5px);
+        }
+
+        .location-main {
+            flex: 1;
+        }
+
+        .location-name {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .location-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .location-db {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 700;
+            min-width: 100px;
+            text-align: right;
+        }
+
+        .db-safe { color: var(--accent-green); }
+        .db-moderate { color: var(--accent-yellow); }
+        .db-high { color: var(--accent-orange); }
+        .db-danger { color: var(--accent-red); }
+
+        /* Status Indicators */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .status-item {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .status-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            height: 250px;
+            margin-top: 1rem;
+            position: relative;
+        }
+
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            height: 100%;
+            gap: 0.5rem;
+        }
+
+        .chart-bar {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .chart-bar:hover {
+            opacity: 0.8;
+        }
+
+        .chart-bar-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            border-radius: 4px 4px 0 0;
+            transition: height 0.5s ease;
+        }
+
+        .chart-label {
+            position: absolute;
+            bottom: -25px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Responsive */
+        @media (max-width: 968px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .header-stats {
+                display: none;
+            }
+
+            .db-value {
+                font-size: 3.5rem;
+            }
+        }
+
+        /* Pulse Animation for Live Data */
+        @keyframes pulse-glow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
+            }
+        }
+
+        .live-pulse {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        /* Sound Wave Visualization */
+        .sound-wave {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 80px;
+            margin: 1.5rem 0;
+        }
+
+        .wave-bar {
+            width: 4px;
+            background: var(--accent-green);
+            border-radius: 2px;
+            animation: wave 0.8s ease-in-out infinite;
+        }
+
+        .wave-bar:nth-child(1) { animation-delay: 0s; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(6) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(7) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(8) { animation-delay: 0.1s; }
+
+        @keyframes wave {
+            0%, 100% { height: 10px; }
+            50% { height: 60px; }
+        }
+
+        /* Map Container */
+        #map {
+            width: 100%;
+            height: 400px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-top: 1rem;
+        }
+
+        .leaflet-container {
+            background: var(--bg-secondary);
+        }
+
+        /* Notification Toast */
+        .notification {
+            position: fixed;
+            top: 100px;
+            right: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-red);
+            border-radius: 8px;
+            padding: 1.5rem;
+            max-width: 350px;
+            z-index: 1000;
+            animation: slideInRight 0.4s ease-out;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            color: var(--accent-red);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+
+        .notification-body {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Threshold Settings */
+        .threshold-settings {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .threshold-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        .threshold-label {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .threshold-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .threshold-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .threshold-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        /* Comparison View */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .comparison-item {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .comparison-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .comparison-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .comparison-change {
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+        }
+
+        .change-positive { color: var(--accent-red); }
+        .change-negative { color: var(--accent-green); }
+
+        /* Export Button */
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* Weather Integration */
+        .weather-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .weather-icon {
+            font-size: 2rem;
+        }
+
+        .weather-details {
+            flex: 1;
+        }
+
+        .weather-temp {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .weather-condition {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* History Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+            margin-top: 1rem;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-color);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -2.5rem;
+            top: 0.5rem;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            border: 2px solid var(--bg-card);
+        }
+
+        .timeline-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .timeline-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .timeline-db {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+
+        /* Heatmap Legend */
+        .heatmap-legend {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        .legend-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-right: 0.5rem;
+        }
+
+        .legend-gradient {
+            flex: 1;
+            height: 20px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, 
+                var(--accent-green) 0%, 
+                var(--accent-yellow) 33%, 
+                var(--accent-orange) 66%, 
+                var(--accent-red) 100%);
+        }
+
+        .legend-values {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: scaleIn 0.3s ease-out;
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: var(--bg-secondary);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.3s;
+            border: 1px solid var(--border-color);
+        }
+
+        .toggle-switch.active {
+            background: var(--accent-green);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(24px);
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: 'Work Sans', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            color: var(--accent-green);
+            border-bottom-color: var(--accent-green);
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-green);
+        }
+
+        /* Leaflet map custom styles */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 0;
+        }
+
+        .leaflet-popup-content {
+            margin: 1rem;
+        }
+
+        /* Pulsing marker animation for high noise areas */
+        @keyframes marker-pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 59, 48, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 59, 48, 0);
+            }
+        }
+
+        .pulsing-marker {
+            animation: marker-pulse 2s infinite;
+        }
+
+        /* Noise zone tooltip styling */
+        .leaflet-tooltip {
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-primary) !important;
+            border-radius: 6px !important;
+            padding: 0.5rem !important;
+            font-family: 'Work Sans', sans-serif !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <header>
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">NW</div>
+                <h1>NoiseWatch</h1>
+            </div>
+            <div class="header-stats">
+                <div class="stat">
+                    <span class="stat-label">Active Sensors</span>
+                    <span class="stat-value" id="sensorCount">39</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Avg dB Today</span>
+                    <span class="stat-value" id="avgDb">58.2</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Last Updated</span>
+                    <span class="stat-value" id="lastUpdate">Live</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notification Toast -->
+    <div id="notification" class="notification" style="display: none;">
+        <div class="notification-header">
+            <div class="notification-title">
+                <span>⚠️</span>
+                <span>Noise Alert</span>
+            </div>
+            <button class="notification-close" onclick="closeNotification()">×</button>
+        </div>
+        <div class="notification-body" id="notificationBody">
+            Noise level exceeded threshold at Downtown District (85.2 dB)
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Settings</h2>
+                <button class="notification-close" onclick="closeSettings()">×</button>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('alerts')">Alerts</button>
+                <button class="tab" onclick="switchTab('display')">Display</button>
+                <button class="tab" onclick="switchTab('export')">Export</button>
+            </div>
+
+            <div id="alertsTab" class="tab-content active">
+                <h3 style="margin-bottom: 1rem;">Alert Thresholds</h3>
+                <div class="threshold-settings">
+                    <div class="threshold-item">
+                        <div class="threshold-label">
+                            <div class="threshold-name">Safe Level</div>
+                            <div class="threshold-desc">Below this is considered safe</div>
+                        </div>
+                        <div class="threshold-value db-safe">< 50 dB</div>
+                    </div>
+                    <div class="threshold-item">
+                        <div class="threshold-label">
+                            <div class="threshold-name">Moderate Level</div>
+                            <div class="threshold-desc">Noticeable but acceptable</div>
+                        </div>
+                        <div class="threshold-value db-moderate">50-70 dB</div>
+                    </div>
+                    <div class="threshold-item">
+                        <div class="threshold-label">
+                            <div class="threshold-name">High Level</div>
+                            <div class="threshold-desc">Potentially harmful</div>
+                        </div>
+                        <div class="threshold-value db-high">70-85 dB</div>
+                    </div>
+                    <div class="threshold-item">
+                        <div class="threshold-label">
+                            <div class="threshold-name">Danger Level</div>
+                            <div class="threshold-desc">Requires immediate attention</div>
+                        </div>
+                        <div class="threshold-value db-danger">> 85 dB</div>
+                    </div>
+                </div>
+                
+                <h3 style="margin: 2rem 0 1rem 0;">Notification Settings</h3>
+                <div class="setting-row">
+                    <span>Enable Browser Notifications</span>
+                    <div class="toggle-switch" onclick="toggleSwitch(this)">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <span>Sound Alerts</span>
+                    <div class="toggle-switch" onclick="toggleSwitch(this)">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="displayTab" class="tab-content">
+                <h3 style="margin-bottom: 1rem;">Display Options</h3>
+                <div class="setting-row">
+                    <span>Show Sound Wave Animation</span>
+                    <div class="toggle-switch active" onclick="toggleSwitch(this)">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <span>Auto-refresh Data</span>
+                    <div class="toggle-switch active" onclick="toggleSwitch(this)">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <span>Show Historical Comparison</span>
+                    <div class="toggle-switch active" onclick="toggleSwitch(this)">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="exportTab" class="tab-content">
+                <h3 style="margin-bottom: 1rem;">Export Data</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Download your noise monitoring data in various formats
+                </p>
+                <div class="button-group">
+                    <button class="btn" onclick="exportData('csv')">Export as CSV</button>
+                    <button class="btn-secondary btn" onclick="exportData('json')">Export as JSON</button>
+                </div>
+                <div class="button-group" style="margin-top: 1rem;">
+                    <button class="btn-secondary btn" onclick="exportData('pdf')">Export Report (PDF)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="controls">
+            <div class="control-group">
+                <div class="input-group">
+                    <label for="location">Select Location</label>
+                    <select id="location" onchange="handleLocationChange()">
+                        <option value="">Choose a location...</option>
+                        <optgroup label="🇮🇳 Pune, Maharashtra (20 locations)">
+                            <option value="Pune - Shivajinagar">Pune - Shivajinagar</option>
+                            <option value="Pune - Hinjewadi IT Park">Pune - Hinjewadi IT Park</option>
+                            <option value="Pune - Koregaon Park">Pune - Koregaon Park</option>
+                            <option value="Pune - Pune Railway Station">Pune - Pune Railway Station</option>
+                            <option value="Pune - FC Road">Pune - FC Road</option>
+                            <option value="Pune - Katraj">Pune - Katraj</option>
+                            <option value="Pune - Kothrud">Pune - Kothrud</option>
+                            <option value="Pune - Viman Nagar">Pune - Viman Nagar</option>
+                            <option value="Pune - Hadapsar">Pune - Hadapsar</option>
+                            <option value="Pune - Baner">Pune - Baner</option>
+                            <option value="Pune - Wakad">Pune - Wakad</option>
+                            <option value="Pune - Magarpatta City">Pune - Magarpatta City</option>
+                            <option value="Pune - Aundh">Pune - Aundh</option>
+                            <option value="Pune - Pimpri Chinchwad">Pune - Pimpri Chinchwad</option>
+                            <option value="Pune - Swargate">Pune - Swargate</option>
+                            <option value="Pune - Deccan Gymkhana">Pune - Deccan Gymkhana</option>
+                            <option value="Pune - Pashan">Pune - Pashan</option>
+                            <option value="Pune - Kharadi">Pune - Kharadi</option>
+                            <option value="Pune - Pune Airport">Pune - Pune Airport</option>
+                            <option value="Pune - Pashan Lake">Pune - Pashan Lake</option>
+                        </optgroup>
+                        <optgroup label="🇮🇳 Mumbai, Maharashtra">
+                            <option value="Mumbai - Dadar Station">Mumbai - Dadar Station</option>
+                            <option value="Mumbai - Bandra Kurla Complex">Mumbai - Bandra Kurla Complex</option>
+                            <option value="Mumbai - Marine Drive">Mumbai - Marine Drive</option>
+                            <option value="Mumbai - Aarey Colony">Mumbai - Aarey Colony</option>
+                        </optgroup>
+                        <optgroup label="🇮🇳 Other Maharashtra">
+                            <option value="Nagpur - Sitabuldi">Nagpur - Sitabuldi</option>
+                            <option value="Nagpur - Airport Road">Nagpur - Airport Road</option>
+                            <option value="Thane - Eastern Express Highway">Thane - Eastern Express Highway</option>
+                        </optgroup>
+                        <optgroup label="🇮🇳 Other Indian Cities">
+                            <option value="Delhi - Connaught Place">Delhi - Connaught Place</option>
+                            <option value="Bangalore - MG Road">Bangalore - MG Road</option>
+                            <option value="Bangalore - Cubbon Park">Bangalore - Cubbon Park</option>
+                            <option value="Chennai - T Nagar">Chennai - T Nagar</option>
+                            <option value="Kolkata - Park Street">Kolkata - Park Street</option>
+                            <option value="Hyderabad - HITEC City">Hyderabad - HITEC City</option>
+                        </optgroup>
+                        <optgroup label="🇺🇸 USA Locations">
+                            <option value="Downtown District">Downtown District</option>
+                            <option value="Airport Area">Airport Area</option>
+                            <option value="Industrial Zone">Industrial Zone</option>
+                            <option value="Residential Area">Residential Area</option>
+                            <option value="Highway Junction">Highway Junction</option>
+                            <option value="Central Park">Central Park</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="customLocation">Add Custom Location</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="customLocation" placeholder="e.g., Times Square, NYC" style="flex: 1;" onkeypress="if(event.key==='Enter') addCustomLocation()">
+                        <button class="btn-secondary btn" onclick="addCustomLocation()" style="padding: 0.75rem 1.5rem;">
+                            ➕ Add
+                        </button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="timeRange">Time Range</label>
+                    <select id="timeRange" onchange="updateTimeRange()">
+                        <option value="live">Live Reading</option>
+                        <option value="1h">Last Hour</option>
+                        <option value="24h" selected>Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="btn" onclick="startMonitoring()">
+                    <span id="monitorBtnText">🎯 Start Monitoring</span>
+                </button>
+                <button class="btn-secondary btn" onclick="getCurrentLocation()">📍 My Location</button>
+                <button class="btn-secondary btn" onclick="openSettings()">⚙️ Settings</button>
+                <button class="btn-secondary btn" onclick="generateReport()">📊 Report</button>
+            </div>
+        </div>
+
+        <div class="dashboard">
+            <div class="card live-pulse">
+                <div class="card-header">
+                    <h2 class="card-title">Current Noise Level</h2>
+                    <span class="card-badge badge-live">● Live</span>
+                </div>
+                <div class="current-reading">
+                    <div class="db-value" id="currentDb">45.2</div>
+                    <div class="db-label">Decibels (dB)</div>
+                    
+                    <!-- Sound Wave Visualization -->
+                    <div class="sound-wave" id="soundWave">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    
+                    <div class="noise-level-bar">
+                        <div class="noise-level-fill" id="noiseLevelFill" style="width: 45%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Location Details</h2>
+                </div>
+                <div class="location-info">
+                    <div class="location-item">
+                        <div class="location-icon">📍</div>
+                        <div class="location-details">
+                            <h3 id="currentLocationName">Pune - Pune Railway Station</h3>
+                            <p id="currentLocationCoords">18.5286°N, 73.8742°E</p>
+                        </div>
+                    </div>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <div class="status-value db-safe" id="statusLevel">SAFE</div>
+                            <div class="status-label">Status</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-value" id="peakDb">72.4</div>
+                            <div class="status-label">Peak dB (24h)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Weather Integration -->
+                    <div class="weather-info">
+                        <div class="weather-icon">⛅</div>
+                        <div class="weather-details">
+                            <div class="weather-temp">22°C</div>
+                            <div class="weather-condition">Partly Cloudy • Wind: 12 km/h</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Interactive Map</h2>
+                </div>
+                <div id="map"></div>
+                <div class="heatmap-legend">
+                    <span class="legend-label">Noise Level:</span>
+                    <div style="flex: 1;">
+                        <div class="legend-gradient"></div>
+                        <div class="legend-values">
+                            <span>30 dB</span>
+                            <span>50 dB</span>
+                            <span>70 dB</span>
+                            <span>90+ dB</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
+                    <strong style="color: var(--text-primary);">💡 Map Guide:</strong><br>
+                    • Colored circles show noise propagation from each source<br>
+                    • Larger circles = wider noise impact area<br>
+                    • Hover over circles to see estimated dB at that distance<br>
+                    • Click markers to view detailed location info
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Noise Propagation Zones</h2>
+                </div>
+                <div class="threshold-settings">
+                    <div class="threshold-item" style="border-left: 3px solid var(--accent-green);">
+                        <div class="threshold-label">
+                            <div class="threshold-name">Inner Zone (0-500m)</div>
+                            <div class="threshold-desc">Full noise intensity from source</div>
+                        </div>
+                        <div class="threshold-value">100%</div>
+                    </div>
+                    <div class="threshold-item" style="border-left: 3px solid var(--accent-yellow);">
+                        <div class="threshold-label">
+                            <div class="threshold-name">Near Zone (500-1000m)</div>
+                            <div class="threshold-desc">~70% of source noise level</div>
+                        </div>
+                        <div class="threshold-value">70%</div>
+                    </div>
+                    <div class="threshold-item" style="border-left: 3px solid var(--accent-orange);">
+                        <div class="threshold-label">
+                            <div class="threshold-name">Medium Zone (1000-1500m)</div>
+                            <div class="threshold-desc">~50% of source noise level</div>
+                        </div>
+                        <div class="threshold-value">50%</div>
+                    </div>
+                    <div class="threshold-item" style="border-left: 3px solid rgba(255, 149, 0, 0.5);">
+                        <div class="threshold-label">
+                            <div class="threshold-name">Far Zone (1500-2000m)</div>
+                            <div class="threshold-desc">~30% of source noise level</div>
+                        </div>
+                        <div class="threshold-value">30%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Historical Comparison</h2>
+                </div>
+                <div class="comparison-grid">
+                    <div class="comparison-item">
+                        <div class="comparison-time">Current</div>
+                        <div class="comparison-value db-safe" id="currentComparison">45.2 dB</div>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="comparison-time">1 Hour Ago</div>
+                        <div class="comparison-value db-moderate" id="hourAgoComparison">52.8 dB</div>
+                        <div class="comparison-change change-negative">
+                            ↓ 7.6 dB
+                        </div>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="comparison-time">Yesterday</div>
+                        <div class="comparison-value db-moderate" id="yesterdayComparison">48.3 dB</div>
+                        <div class="comparison-change change-negative">
+                            ↓ 3.1 dB
+                        </div>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="comparison-time">Last Week</div>
+                        <div class="comparison-value db-safe" id="weekAgoComparison">43.7 dB</div>
+                        <div class="comparison-change change-positive">
+                            ↑ 1.5 dB
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">24-Hour Trend</h2>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-bars" id="chartBars">
+                        <!-- Chart bars will be generated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Activity</h2>
+                </div>
+                <div class="timeline" id="timeline">
+                    <!-- Timeline will be generated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- All Locations Section -->
+        <div class="card" style="margin-top: 2rem;">
+            <div class="card-header">
+                <h2 class="card-title">All Monitoring Locations</h2>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button class="tab" id="filterAll" onclick="filterLocations('all')" style="padding: 0.5rem 1rem; margin: 0; border-bottom: none;">All (39)</button>
+                    <button class="tab" id="filterPune" onclick="filterLocations('pune')" style="padding: 0.5rem 1rem; margin: 0; border-bottom: none;">Pune (20)</button>
+                    <button class="tab" id="filterMaharashtra" onclick="filterLocations('maharashtra')" style="padding: 0.5rem 1rem; margin: 0; border-bottom: none;">Maharashtra (27)</button>
+                    <button class="tab" id="filterIndia" onclick="filterLocations('india')" style="padding: 0.5rem 1rem; margin: 0; border-bottom: none;">India (33)</button>
+                    <button class="tab" id="filterUSA" onclick="filterLocations('usa')" style="padding: 0.5rem 1rem; margin: 0; border-bottom: none;">USA (6)</button>
+                </div>
+            </div>
+            <div class="locations-grid" id="locationsGrid">
+                <!-- Location cards will be generated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced data structures
+        const locations = [
+            // USA Locations
+            { name: 'Downtown District', coords: [40.7128, -74.0060], db: 68.5, status: 'moderate', zone: 'commercial' },
+            { name: 'Airport Area', coords: [40.6413, -73.7781], db: 85.2, status: 'danger', zone: 'transport' },
+            { name: 'Industrial Zone', coords: [40.7589, -73.9851], db: 75.8, status: 'high', zone: 'industrial' },
+            { name: 'Residential Area', coords: [40.7282, -73.7949], db: 42.3, status: 'safe', zone: 'residential' },
+            { name: 'Highway Junction', coords: [40.7614, -73.9776], db: 71.2, status: 'moderate', zone: 'transport' },
+            { name: 'Central Park', coords: [40.7829, -73.9654], db: 38.5, status: 'safe', zone: 'park' },
+            
+            // Mumbai, Maharashtra
+            { name: 'Mumbai - Dadar Station', coords: [19.0176, 72.8561], db: 82.4, status: 'danger', zone: 'transport' },
+            { name: 'Mumbai - Bandra Kurla Complex', coords: [19.0596, 72.8656], db: 71.3, status: 'high', zone: 'commercial' },
+            { name: 'Mumbai - Marine Drive', coords: [18.9432, 72.8230], db: 65.8, status: 'moderate', zone: 'commercial' },
+            { name: 'Mumbai - Aarey Colony', coords: [19.2183, 72.8785], db: 41.2, status: 'safe', zone: 'park' },
+            
+            // Pune, Maharashtra (Expanded)
+            { name: 'Pune - Shivajinagar', coords: [18.5304, 73.8567], db: 69.7, status: 'moderate', zone: 'commercial' },
+            { name: 'Pune - Hinjewadi IT Park', coords: [18.5912, 73.7389], db: 58.3, status: 'moderate', zone: 'commercial' },
+            { name: 'Pune - Koregaon Park', coords: [18.5362, 73.8959], db: 52.4, status: 'moderate', zone: 'residential' },
+            { name: 'Pune - Pune Railway Station', coords: [18.5286, 73.8742], db: 79.8, status: 'high', zone: 'transport' },
+            { name: 'Pune - FC Road', coords: [18.5196, 73.8553], db: 67.3, status: 'moderate', zone: 'commercial' },
+            { name: 'Pune - Katraj', coords: [18.4481, 73.8671], db: 71.5, status: 'high', zone: 'transport' },
+            { name: 'Pune - Kothrud', coords: [18.5074, 73.8077], db: 55.8, status: 'moderate', zone: 'residential' },
+            { name: 'Pune - Viman Nagar', coords: [18.5679, 73.9143], db: 62.4, status: 'moderate', zone: 'residential' },
+            { name: 'Pune - Hadapsar', coords: [18.5089, 73.9260], db: 64.2, status: 'moderate', zone: 'industrial' },
+            { name: 'Pune - Baner', coords: [18.5590, 73.7864], db: 59.6, status: 'moderate', zone: 'residential' },
+            { name: 'Pune - Wakad', coords: [18.5979, 73.7640], db: 61.3, status: 'moderate', zone: 'residential' },
+            { name: 'Pune - Magarpatta City', coords: [18.5158, 73.9288], db: 56.7, status: 'moderate', zone: 'commercial' },
+            { name: 'Pune - Aundh', coords: [18.5640, 73.8077], db: 54.2, status: 'moderate', zone: 'residential' },
+            { name: 'Pune - Pimpri Chinchwad', coords: [18.6298, 73.7997], db: 73.8, status: 'high', zone: 'industrial' },
+            { name: 'Pune - Swargate', coords: [18.5018, 73.8636], db: 75.6, status: 'high', zone: 'transport' },
+            { name: 'Pune - Deccan Gymkhana', coords: [18.5167, 73.8422], db: 63.5, status: 'moderate', zone: 'commercial' },
+            { name: 'Pune - Pashan', coords: [18.5362, 73.7980], db: 48.9, status: 'safe', zone: 'residential' },
+            { name: 'Pune - Kharadi', coords: [18.5515, 73.9474], db: 66.1, status: 'moderate', zone: 'commercial' },
+            { name: 'Pune - Pune Airport', coords: [18.5821, 73.9197], db: 86.3, status: 'danger', zone: 'transport' },
+            { name: 'Pune - Pashan Lake', coords: [18.5397, 73.7958], db: 39.4, status: 'safe', zone: 'park' },
+            
+            // Nagpur, Maharashtra
+            { name: 'Nagpur - Sitabuldi', coords: [21.1458, 79.0882], db: 67.2, status: 'moderate', zone: 'commercial' },
+            { name: 'Nagpur - Airport Road', coords: [21.0922, 79.0477], db: 78.5, status: 'high', zone: 'transport' },
+            
+            // Thane, Maharashtra
+            { name: 'Thane - Eastern Express Highway', coords: [19.2183, 72.9781], db: 76.8, status: 'high', zone: 'transport' },
+            
+            // Other Major Indian Cities
+            { name: 'Delhi - Connaught Place', coords: [28.6315, 77.2167], db: 74.6, status: 'high', zone: 'commercial' },
+            { name: 'Bangalore - MG Road', coords: [12.9716, 77.5946], db: 70.4, status: 'high', zone: 'commercial' },
+            { name: 'Bangalore - Cubbon Park', coords: [12.9763, 77.5928], db: 44.7, status: 'safe', zone: 'park' },
+            { name: 'Chennai - T Nagar', coords: [13.0418, 80.2341], db: 72.1, status: 'high', zone: 'commercial' },
+            { name: 'Kolkata - Park Street', coords: [22.5539, 88.3539], db: 68.9, status: 'moderate', zone: 'commercial' },
+            { name: 'Hyderabad - HITEC City', coords: [17.4435, 78.3772], db: 64.3, status: 'moderate', zone: 'commercial' },
+        ];
+
+        // State management
+        let currentDb = 79.8;
+        let isMonitoring = false;
+        let monitoringInterval;
+        let map = null;
+        let markers = [];
+        let currentLocation = locations[13]; // Default to Pune Railway Station
+        let historicalData = [];
+
+        // Initialize map - centered on Pune, Maharashtra
+        function initMap() {
+            // Start centered on Pune
+            map = L.map('map').setView([18.5204, 73.8567], 11);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap contributors © CARTO',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add location markers with noise propagation circles
+            locations.forEach(loc => {
+                addLocationWithNoisePropagation(loc);
+            });
+        }
+
+        function addLocationWithNoisePropagation(loc) {
+            const color = getMarkerColor(loc.db);
+            
+            // Calculate noise propagation zones (concentric circles)
+            // Noise decreases with distance following inverse square law approximation
+            const propagationZones = [
+                { radius: 500, opacity: 0.3, decay: 0 },      // Immediate area (full noise)
+                { radius: 1000, opacity: 0.2, decay: 0.3 },   // Near area (70% noise)
+                { radius: 1500, opacity: 0.12, decay: 0.5 },  // Medium area (50% noise)
+                { radius: 2000, opacity: 0.06, decay: 0.7 }   // Far area (30% noise)
+            ];
+
+            // Draw concentric circles for noise propagation
+            propagationZones.forEach((zone, index) => {
+                const zoneDb = loc.db * (1 - zone.decay);
+                const zoneColor = getMarkerColor(zoneDb);
+                
+                const circle = L.circle(loc.coords, {
+                    radius: zone.radius,
+                    fillColor: zoneColor,
+                    color: zoneColor,
+                    weight: 1,
+                    opacity: zone.opacity * 0.5,
+                    fillOpacity: zone.opacity
+                }).addTo(map);
+
+                // Add popup showing estimated noise at this distance
+                circle.bindTooltip(`
+                    <div style="color: #000; font-family: 'Work Sans', sans-serif; font-size: 0.85rem;">
+                        <strong>~${zoneDb.toFixed(1)} dB</strong><br>
+                        <small>${zone.radius}m from ${loc.name}</small>
+                    </div>
+                `, { sticky: true });
+
+                markers.push(circle);
+            });
+
+            // Add central marker on top
+            const marker = L.circleMarker(loc.coords, {
+                radius: 14,
+                fillColor: color,
+                color: '#fff',
+                weight: 3,
+                opacity: 1,
+                fillOpacity: 1
+            }).addTo(map);
+
+            // Add pulsing effect for high noise areas
+            if (loc.db > 70) {
+                marker.setStyle({
+                    className: 'pulsing-marker'
+                });
+            }
+
+            marker.bindPopup(`
+                <div style="color: #000; font-family: 'Work Sans', sans-serif;">
+                    <strong style="font-size: 1.1rem;">${loc.name}</strong><br>
+                    <span style="font-size: 1.4rem; font-weight: bold; color: ${color};">${loc.db} dB</span><br>
+                    <small style="color: #666;">${loc.zone} zone</small><br>
+                    <small style="color: #666;">📍 ${loc.coords[0].toFixed(4)}°N, ${Math.abs(loc.coords[1]).toFixed(4)}°W</small>
+                </div>
+            `);
+
+            marker.on('click', () => selectLocation(loc.name, loc.db));
+            markers.push(marker);
+        }
+
+        function getMarkerColor(db) {
+            if (db < 50) return '#00ff88';
+            if (db < 70) return '#ffeb3b';
+            if (db < 85) return '#ff9500';
+            return '#ff3b30';
+        }
+
+        // Render locations grid
+        function renderLocations(filter = 'all') {
+            const grid = document.getElementById('locationsGrid');
+            let filteredLocations = locations;
+            
+            // Apply filter
+            if (filter === 'pune') {
+                filteredLocations = locations.filter(loc => loc.name.includes('Pune'));
+            } else if (filter === 'maharashtra') {
+                filteredLocations = locations.filter(loc => 
+                    loc.name.includes('Mumbai') || loc.name.includes('Pune') || 
+                    loc.name.includes('Nagpur') || loc.name.includes('Thane')
+                );
+            } else if (filter === 'india') {
+                filteredLocations = locations.filter(loc => 
+                    loc.name.includes('Mumbai') || loc.name.includes('Pune') || 
+                    loc.name.includes('Nagpur') || loc.name.includes('Thane') ||
+                    loc.name.includes('Delhi') || loc.name.includes('Bangalore') ||
+                    loc.name.includes('Chennai') || loc.name.includes('Kolkata') ||
+                    loc.name.includes('Hyderabad')
+                );
+            } else if (filter === 'usa') {
+                filteredLocations = locations.filter(loc => 
+                    !loc.name.includes('Mumbai') && !loc.name.includes('Pune') && 
+                    !loc.name.includes('Nagpur') && !loc.name.includes('Thane') &&
+                    !loc.name.includes('Delhi') && !loc.name.includes('Bangalore') &&
+                    !loc.name.includes('Chennai') && !loc.name.includes('Kolkata') &&
+                    !loc.name.includes('Hyderabad') && loc.zone !== 'custom'
+                );
+            }
+            
+            grid.innerHTML = filteredLocations.map(loc => {
+                const lonStr = `${Math.abs(loc.coords[1]).toFixed(4)}°${loc.coords[1] < 0 ? 'W' : 'E'}`;
+                return `
+                <div class="location-card" onclick="selectLocation('${loc.name}', ${loc.db})">
+                    <div class="location-main">
+                        <div class="location-name">${loc.name}</div>
+                        <div class="location-meta">
+                            <span>📍 ${loc.coords[0].toFixed(4)}°N, ${lonStr}</span>
+                            <span>• ${loc.zone}</span>
+                        </div>
+                    </div>
+                    <div class="location-db db-${loc.status}">${loc.db} dB</div>
+                </div>
+            `;
+            }).join('');
+        }
+
+        function filterLocations(region) {
+            // Update active tab
+            document.querySelectorAll('#filterAll, #filterPune, #filterMaharashtra, #filterIndia, #filterUSA').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const filterMap = {
+                'all': 'filterAll',
+                'pune': 'filterPune',
+                'maharashtra': 'filterMaharashtra',
+                'india': 'filterIndia',
+                'usa': 'filterUSA'
+            };
+            
+            document.getElementById(filterMap[region]).classList.add('active');
+            
+            // Render filtered locations
+            renderLocations(region);
+            
+            // Adjust map view based on filter
+            if (map) {
+                if (region === 'pune') {
+                    map.setView([18.5204, 73.8567], 11); // Centered on Pune
+                } else if (region === 'maharashtra') {
+                    map.setView([19.0760, 72.8777], 7); // Centered on Maharashtra
+                } else if (region === 'india') {
+                    map.setView([20.5937, 78.9629], 5); // Centered on India
+                } else if (region === 'usa') {
+                    map.setView([40.7128, -74.0060], 8); // Centered on USA
+                } else {
+                    map.setView([20, 40], 2); // World view for All
+                }
+            }
+        }
+
+        // Render 24-hour chart with realistic variations
+        function renderChart() {
+            const hours = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
+            const baseValue = currentDb;
+            const values = hours.map((_, i) => {
+                const timeEffect = Math.sin((i / hours.length) * Math.PI * 2) * 15;
+                return Math.max(30, Math.min(90, baseValue + timeEffect + (Math.random() - 0.5) * 10));
+            });
+            
+            const chartBars = document.getElementById('chartBars');
+            chartBars.innerHTML = hours.map((hour, i) => {
+                const height = (values[i] / 100) * 100;
+                const color = getColorByDb(values[i]);
+                return `
+                    <div class="chart-bar" title="${values[i].toFixed(1)} dB at ${hour}">
+                        <div class="chart-bar-fill" style="height: ${height}%; background: ${color};"></div>
+                        <div class="chart-label">${hour}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Render timeline
+        function renderTimeline() {
+            const timeline = document.getElementById('timeline');
+            const events = generateTimelineEvents();
+            
+            timeline.innerHTML = events.map(event => `
+                <div class="timeline-item">
+                    <div class="timeline-time">${event.time}</div>
+                    <div class="timeline-content">
+                        <span>${event.description}</span>
+                        <span class="timeline-db db-${event.status}">${event.db} dB</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function generateTimelineEvents() {
+            const now = new Date();
+            const events = [];
+            
+            for (let i = 0; i < 5; i++) {
+                const time = new Date(now - i * 15 * 60 * 1000);
+                const db = currentDb + (Math.random() - 0.5) * 20;
+                events.push({
+                    time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                    description: getEventDescription(db),
+                    db: db.toFixed(1),
+                    status: getStatusByDb(db).toLowerCase()
+                });
+            }
+            
+            return events;
+        }
+
+        function getEventDescription(db) {
+            if (db > 80) return 'High traffic detected';
+            if (db > 65) return 'Moderate activity';
+            if (db > 50) return 'Normal levels';
+            return 'Quiet period';
+        }
+
+        // Get color based on dB level
+        function getColorByDb(db) {
+            if (db < 50) return 'var(--gradient-safe)';
+            if (db < 70) return 'var(--gradient-moderate)';
+            if (db < 85) return 'var(--gradient-high)';
+            return 'var(--gradient-danger)';
+        }
+
+        // Get status text
+        function getStatusByDb(db) {
+            if (db < 50) return 'SAFE';
+            if (db < 70) return 'MODERATE';
+            if (db < 85) return 'HIGH';
+            return 'DANGER';
+        }
+
+        // Update current reading with animations
+        function updateReading(db) {
+            currentDb = db;
+            const dbElement = document.getElementById('currentDb');
+            const fillElement = document.getElementById('noiseLevelFill');
+            const statusElement = document.getElementById('statusLevel');
+            
+            // Smooth number transition
+            animateValue(dbElement, parseFloat(dbElement.textContent), db, 500);
+            
+            fillElement.style.width = Math.min((db / 100) * 100, 100) + '%';
+            fillElement.style.background = getColorByDb(db);
+            
+            const status = getStatusByDb(db);
+            statusElement.textContent = status;
+            statusElement.className = 'status-value db-' + status.toLowerCase();
+            
+            // Update gradient on dB value
+            dbElement.style.background = getColorByDb(db);
+            dbElement.style.webkitBackgroundClip = 'text';
+            dbElement.style.webkitTextFillColor = 'transparent';
+
+            // Update sound wave intensity
+            updateSoundWave(db);
+
+            // Check for alerts
+            checkAlerts(db);
+
+            // Update comparison values
+            updateComparisons(db);
+
+            // Store in history
+            historicalData.push({ time: new Date(), db: db });
+            if (historicalData.length > 100) historicalData.shift();
+        }
+
+        function animateValue(element, start, end, duration) {
+            const range = end - start;
+            const increment = range / (duration / 16);
+            let current = start;
+            
+            const timer = setInterval(() => {
+                current += increment;
+                if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                element.textContent = current.toFixed(1);
+            }, 16);
+        }
+
+        function updateSoundWave(db) {
+            const waveBars = document.querySelectorAll('.wave-bar');
+            const intensity = Math.min(db / 100, 1);
+            
+            waveBars.forEach((bar, i) => {
+                const height = 10 + (intensity * 50) + (Math.random() * 20);
+                bar.style.height = height + 'px';
+                bar.style.background = getColorByDb(db);
+            });
+        }
+
+        function updateComparisons(db) {
+            document.getElementById('currentComparison').textContent = db.toFixed(1) + ' dB';
+            
+            const hourAgo = db - (Math.random() * 10 - 5);
+            const yesterday = db - (Math.random() * 8 - 4);
+            const weekAgo = db - (Math.random() * 6 - 3);
+            
+            document.getElementById('hourAgoComparison').textContent = hourAgo.toFixed(1) + ' dB';
+            document.getElementById('yesterdayComparison').textContent = yesterday.toFixed(1) + ' dB';
+            document.getElementById('weekAgoComparison').textContent = weekAgo.toFixed(1) + ' dB';
+        }
+
+        function checkAlerts(db) {
+            if (db > 85 && Math.random() > 0.7) {
+                showNotification(`Danger level detected! Current: ${db.toFixed(1)} dB`);
+            }
+        }
+
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            const notificationBody = document.getElementById('notificationBody');
+            
+            notificationBody.textContent = message;
+            notification.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+
+        function closeNotification() {
+            document.getElementById('notification').style.display = 'none';
+        }
+
+        // Select a location
+        function selectLocation(name, db) {
+            const location = locations.find(l => l.name === name);
+            if (!location) return;
+            
+            currentLocation = location;
+            document.getElementById('currentLocationName').textContent = name;
+            
+            // Format coordinates with correct E/W designation
+            const latStr = `${location.coords[0].toFixed(4)}°N`;
+            const lonStr = `${Math.abs(location.coords[1]).toFixed(4)}°${location.coords[1] < 0 ? 'W' : 'E'}`;
+            document.getElementById('currentLocationCoords').textContent = `${latStr}, ${lonStr}`;
+            
+            updateReading(db);
+            document.getElementById('peakDb').textContent = (db + Math.random() * 10).toFixed(1);
+            
+            // Center map on location
+            if (map) {
+                map.setView(location.coords, 13);
+            }
+        }
+
+        // Start/Stop monitoring
+        function startMonitoring() {
+            const btn = document.getElementById('monitorBtnText');
+            
+            if (!isMonitoring) {
+                isMonitoring = true;
+                btn.textContent = '⏸️ Pause Monitoring';
+                
+                monitoringInterval = setInterval(() => {
+                    const variation = (Math.random() - 0.5) * 8;
+                    const newDb = Math.max(30, Math.min(100, currentDb + variation));
+                    updateReading(newDb);
+                    
+                    // Update timestamp
+                    const now = new Date();
+                    document.getElementById('lastUpdate').textContent = 
+                        now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    
+                    // Refresh timeline periodically
+                    if (Math.random() > 0.8) {
+                        renderTimeline();
+                    }
+                }, 2000);
+                
+                showNotification('Live monitoring started! Data updates every 2 seconds.');
+            } else {
+                isMonitoring = false;
+                btn.textContent = '🎯 Start Monitoring';
+                clearInterval(monitoringInterval);
+                showNotification('Monitoring paused.');
+            }
+        }
+
+        // Settings functions
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function switchTab(tabName) {
+            // Remove active class from all tabs and contents
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active class to selected tab
+            event.target.classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+
+        function toggleSwitch(element) {
+            element.classList.toggle('active');
+        }
+
+        function addCustomLocation() {
+            const input = document.getElementById('customLocation');
+            const locationName = input.value.trim();
+            
+            if (!locationName) {
+                showNotification('Please enter a location name');
+                return;
+            }
+            
+            // Simulate geocoding - in real app, would use Google Maps API or similar
+            showNotification('Searching for location: ' + locationName);
+            
+            // Determine region based on keywords
+            const lowerName = locationName.toLowerCase();
+            let baseLat, baseLon;
+            
+            // Check if location is in India/Maharashtra
+            if (lowerName.includes('mumbai') || lowerName.includes('pune') || lowerName.includes('nagpur') || 
+                lowerName.includes('thane') || lowerName.includes('maharashtra') || lowerName.includes('india') ||
+                lowerName.includes('delhi') || lowerName.includes('bangalore') || lowerName.includes('chennai') ||
+                lowerName.includes('kolkata') || lowerName.includes('hyderabad')) {
+                // Generate coordinates in Maharashtra/India region
+                baseLat = 19.0760 + (Math.random() - 0.5) * 3;
+                baseLon = 72.8777 + (Math.random() - 0.5) * 3;
+            } else {
+                // Generate random coordinates near NYC area for other locations
+                baseLat = 40.7128 + (Math.random() - 0.5) * 0.5;
+                baseLon = -74.0060 + (Math.random() - 0.5) * 0.5;
+            }
+            
+            // Estimate noise based on location name keywords
+            let estimatedDb = 50; // Default
+            
+            if (lowerName.includes('airport') || lowerName.includes('highway') || lowerName.includes('station')) {
+                estimatedDb = 75 + Math.random() * 15; // 75-90 dB
+            } else if (lowerName.includes('industrial') || lowerName.includes('factory') || lowerName.includes('construction')) {
+                estimatedDb = 70 + Math.random() * 15; // 70-85 dB
+            } else if (lowerName.includes('downtown') || lowerName.includes('market') || lowerName.includes('commercial') || lowerName.includes('bazar') || lowerName.includes('bazaar')) {
+                estimatedDb = 60 + Math.random() * 15; // 60-75 dB
+            } else if (lowerName.includes('park') || lowerName.includes('garden') || lowerName.includes('residential') || lowerName.includes('colony')) {
+                estimatedDb = 35 + Math.random() * 15; // 35-50 dB
+            } else if (lowerName.includes('club') || lowerName.includes('concert') || lowerName.includes('bar') || lowerName.includes('mall')) {
+                estimatedDb = 80 + Math.random() * 10; // 80-90 dB
+            } else {
+                estimatedDb = 45 + Math.random() * 25; // 45-70 dB
+            }
+            
+            // Create new location object
+            const newLocation = {
+                name: locationName,
+                coords: [baseLat, baseLon],
+                db: estimatedDb,
+                zone: 'custom',
+                status: getStatusByDb(estimatedDb).toLowerCase()
+            };
+            
+            // Add to locations array
+            locations.push(newLocation);
+            
+            // Add to map with noise propagation
+            if (map) {
+                addLocationWithNoisePropagation(newLocation, true);
+                map.setView(newLocation.coords, 13);
+            }
+            
+            // Update UI
+            updateReading(estimatedDb);
+            document.getElementById('currentLocationName').textContent = locationName;
+            
+            // Format coordinates with correct E/W designation
+            const latStr = `${baseLat.toFixed(4)}°N`;
+            const lonStr = `${Math.abs(baseLon).toFixed(4)}°${baseLon < 0 ? 'W' : 'E'}`;
+            document.getElementById('currentLocationCoords').textContent = `${latStr}, ${lonStr}`;
+            
+            // Refresh locations grid
+            renderLocations();
+            
+            // Update sensor count
+            document.getElementById('sensorCount').textContent = locations.length;
+            
+            // Clear input
+            input.value = '';
+            
+            showNotification(`📍 Added: ${locationName} (${estimatedDb.toFixed(1)} dB) with noise propagation zones`);
+        }
+
+        // Get current location using browser geolocation
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                showNotification('Getting your location...');
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        
+                        // Simulate noise level based on urban density (random for demo)
+                        const estimatedDb = 45 + Math.random() * 30;
+                        
+                        document.getElementById('currentLocationName').textContent = 'Your Location';
+                        document.getElementById('currentLocationCoords').textContent = 
+                            `${lat.toFixed(4)}°N, ${Math.abs(lon).toFixed(4)}°${lon < 0 ? 'W' : 'E'}`;
+                        
+                        if (map) {
+                            // Clear previous custom location markers if any
+                            map.eachLayer(layer => {
+                                if (layer.options && layer.options.customLocation) {
+                                    map.removeLayer(layer);
+                                }
+                            });
+                            
+                            map.setView([lat, lon], 13);
+                            
+                            // Add your location with noise propagation
+                            const yourLocation = {
+                                name: 'Your Location',
+                                coords: [lat, lon],
+                                db: estimatedDb,
+                                zone: 'custom',
+                                status: getStatusByDb(estimatedDb).toLowerCase()
+                            };
+                            
+                            addLocationWithNoisePropagation(yourLocation, true);
+                            updateReading(estimatedDb);
+                        }
+                        
+                        showNotification(`Location found! Estimated noise: ${estimatedDb.toFixed(1)} dB`);
+                    },
+                    (error) => {
+                        showNotification('Unable to get location. Please check permissions.');
+                    }
+                );
+            } else {
+                showNotification('Geolocation is not supported by your browser.');
+            }
+        }
+
+        function addLocationWithNoisePropagation(loc, isCustom = false) {
+            const color = getMarkerColor(loc.db);
+            
+            // Calculate noise propagation zones (concentric circles)
+            // Noise decreases with distance following inverse square law approximation
+            const propagationZones = [
+                { radius: 500, opacity: 0.3, decay: 0 },      // Immediate area (full noise)
+                { radius: 1000, opacity: 0.2, decay: 0.3 },   // Near area (70% noise)
+                { radius: 1500, opacity: 0.12, decay: 0.5 },  // Medium area (50% noise)
+                { radius: 2000, opacity: 0.06, decay: 0.7 }   // Far area (30% noise)
+            ];
+
+            // Draw concentric circles for noise propagation
+            propagationZones.forEach((zone, index) => {
+                const zoneDb = loc.db * (1 - zone.decay);
+                const zoneColor = getMarkerColor(zoneDb);
+                
+                const circle = L.circle(loc.coords, {
+                    radius: zone.radius,
+                    fillColor: zoneColor,
+                    color: zoneColor,
+                    weight: 1,
+                    opacity: zone.opacity * 0.5,
+                    fillOpacity: zone.opacity,
+                    customLocation: isCustom
+                }).addTo(map);
+
+                // Add popup showing estimated noise at this distance
+                circle.bindTooltip(`
+                    <div style="color: #000; font-family: 'Work Sans', sans-serif; font-size: 0.85rem;">
+                        <strong>~${zoneDb.toFixed(1)} dB</strong><br>
+                        <small>${zone.radius}m from ${loc.name}</small>
+                    </div>
+                `, { sticky: true });
+
+                markers.push(circle);
+            });
+
+            // Add central marker on top
+            const marker = L.circleMarker(loc.coords, {
+                radius: 14,
+                fillColor: color,
+                color: '#fff',
+                weight: 3,
+                opacity: 1,
+                fillOpacity: 1,
+                customLocation: isCustom
+            }).addTo(map);
+
+            // Add pulsing effect for high noise areas
+            if (loc.db > 70) {
+                marker.setStyle({
+                    className: 'pulsing-marker'
+                });
+            }
+
+            marker.bindPopup(`
+                <div style="color: #000; font-family: 'Work Sans', sans-serif;">
+                    <strong style="font-size: 1.1rem;">${loc.name}</strong><br>
+                    <span style="font-size: 1.4rem; font-weight: bold; color: ${color};">${loc.db.toFixed(1)} dB</span><br>
+                    <small style="color: #666;">${loc.zone} zone</small><br>
+                    <small style="color: #666;">📍 ${loc.coords[0].toFixed(4)}°N, ${Math.abs(loc.coords[1]).toFixed(4)}°${loc.coords[1] < 0 ? 'W' : 'E'}</small>
+                </div>
+            `);
+
+            marker.on('click', () => selectLocation(loc.name, loc.db));
+            markers.push(marker);
+        }
+
+        function handleLocationChange() {
+            const select = document.getElementById('location');
+            const selectedName = select.options[select.selectedIndex].text;
+            const location = locations.find(l => l.name === selectedName);
+            
+            if (location) {
+                selectLocation(location.name, location.db);
+            }
+        }
+
+        function updateTimeRange() {
+            const range = document.getElementById('timeRange').value;
+            showNotification(`Time range updated to: ${range}`);
+            renderChart(); // Regenerate chart for new time range
+        }
+
+        // Export functions
+        function exportData(format) {
+            const data = {
+                location: currentLocation.name,
+                currentDb: currentDb,
+                timestamp: new Date().toISOString(),
+                historicalData: historicalData,
+                allLocations: locations
+            };
+            
+            if (format === 'csv') {
+                exportCSV(data);
+            } else if (format === 'json') {
+                exportJSON(data);
+            } else if (format === 'pdf') {
+                showNotification('PDF export feature coming soon!');
+            }
+        }
+
+        function exportCSV(data) {
+            let csv = 'Timestamp,Location,Noise Level (dB)\n';
+            data.historicalData.forEach(entry => {
+                csv += `${entry.time.toISOString()},${data.location},${entry.db}\n`;
+            });
+            
+            downloadFile(csv, 'noise-data.csv', 'text/csv');
+            showNotification('CSV file downloaded successfully!');
+        }
+
+        function exportJSON(data) {
+            const json = JSON.stringify(data, null, 2);
+            downloadFile(json, 'noise-data.json', 'application/json');
+            showNotification('JSON file downloaded successfully!');
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function generateReport() {
+            showNotification('Generating comprehensive noise pollution report...');
+            setTimeout(() => {
+                const report = `
+=== NOISE POLLUTION REPORT ===
+Generated: ${new Date().toLocaleString()}
+
+Current Location: ${currentLocation.name}
+Current Level: ${currentDb.toFixed(1)} dB
+Status: ${getStatusByDb(currentDb)}
+Peak (24h): ${document.getElementById('peakDb').textContent}
+
+All Locations Summary:
+${locations.map(loc => `- ${loc.name}: ${loc.db} dB (${loc.status})`).join('\n')}
+
+Recommendations:
+${currentDb > 85 ? '⚠️ Immediate action required - noise levels exceed safe limits' : 
+  currentDb > 70 ? '⚡ Monitor closely - levels approaching danger zone' :
+  '✅ Levels within acceptable range'}
+                `.trim();
+                
+                downloadFile(report, 'noise-report.txt', 'text/plain');
+                showNotification('Report generated and downloaded!');
+            }, 1000);
+        }
+
+        // Stop monitoring on page unload
+        window.addEventListener('beforeunload', () => {
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+            }
+        });
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Set default filter to 'All'
+            document.getElementById('filterAll').classList.add('active');
+            
+            renderLocations('all');
+            renderChart();
+            renderTimeline();
+            
+            // Initialize with Pune Railway Station data
+            updateReading(79.8);
+            selectLocation('Pune - Pune Railway Station', 79.8);
+            
+            // Initialize map after a short delay to ensure container is ready
+            setTimeout(() => {
+                initMap();
+            }, 100);
+        });
+
+        // Click outside modal to close
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'settingsModal') {
+                closeSettings();
+            }
+        });
+    </script>
+</body>
+</html>
